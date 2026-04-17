@@ -144,7 +144,7 @@ print_banner() {
     echo "  ╔════════════════════════════════════════════╗"
     echo "  ║     SNI SCANNER — MATRIX EDITION           ║"
     echo "  ║  \"Follow the white rabbit\" — Neo           ║"
-    echo "  ║     SNI SCANNER — MATRIX EDITION           ║"
+    echo "  ║    github.com/siniorone/SNI-Scanner        ║"
     echo "  ╚════════════════════════════════════════════╝"
     echo -e "${N}\n"
 }
