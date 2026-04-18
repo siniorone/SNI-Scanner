@@ -2,6 +2,9 @@
 
 > "Follow the white rabbit." --- Neo\
 > There is no spoon. Only open ports.
+<img width="890" height="734" alt="image" src="https://github.com/user-attachments/assets/5d6acf69-451f-4fc9-b9ac-e6db3b9c95f7" />
+
+<img width="890" height="473" alt="image" src="https://github.com/user-attachments/assets/020ac981-3392-45ff-90c7-22d44a7978a2" />
 
 A stylish, interactive **Bash-based SNI/TLS port scanner** that checks
 common web ports for connectivity --- wrapped in a Matrix-themed
