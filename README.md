@@ -1,246 +1,147 @@
-# 🕶️ SNI Scanner — Matrix Edition
+# 🕶️ SNI Scanner --- Matrix Edition
 
-> “Follow the white rabbit.” — Neo
+> "Follow the white rabbit." --- Neo\
 > There is no spoon. Only open ports.
 
-A stylish, interactive Bash-based SNI/TLS port scanner that checks common web ports for connectivity and availability — wrapped in a Matrix-themed terminal interface.
-<img width="1105" height="733" alt="image" src="https://github.com/user-attachments/assets/c0c68ca0-4c8b-408e-a087-114fda0c9770" />
+A stylish, interactive **Bash-based SNI/TLS port scanner** that checks
+common web ports for connectivity --- wrapped in a Matrix-themed
+terminal interface.
 
----
+------------------------------------------------------------------------
 
-## 🚀 Features
+## 🚀 Why SNI Scanner?
 
-* 🔎 Scans common web & TLS-related ports:
+Lightweight. Clean. No heavy dependencies.\
+Built entirely in Bash using native TCP sockets.
 
-  ```
-  443, 80, 8080, 8443, 2053, 2083, 2087, 2096
-  ```
-* 🌐 DNS resolution before scanning
-* 📂 Multiple input sources:
+Perfect for:
 
-  * Embedded default target list
-  * Local file
-  * Remote URL (auto-download via wget)
-  * Single domain/IP
-* 📊 Live animated progress bar
-* 🎨 Matrix-style terminal UI with colorized output
-* 🗂️ Automatic timestamped logging
-* 📑 Sorted results (OPEN targets prioritized by port count)
-* 🧼 Ignores blank lines and comments in lists
+-   🔐 Security researchers\
+-   🖥 Infrastructure audits\
+-   🌐 Quick connectivity diagnostics\
+-   🎓 Educational purposes
 
----
+------------------------------------------------------------------------
+
+## ✨ Features
+
+-   🔎 Scans common web & TLS ports:
+
+    80, 443, 8080, 8443, 2053, 2083, 2087, 2096
+
+-   🌐 DNS resolution before scanning
+
+-   📂 Multiple input sources
+
+-   📊 Live animated progress bar
+
+-   🎨 Matrix-style terminal UI
+
+-   🗂️ Automatic timestamped logging
+
+-   📑 Sorted results (OPEN targets ranked by port count)
+
+-   🧼 Ignores blank lines & comments
+
+-   🧠 Pure Bash --- no external scanners required
+
+------------------------------------------------------------------------
 
 ## 📦 Requirements
 
-Make sure the following tools are installed:
-
-* `bash` (v4+ recommended)
-* `dig`
-* `timeout`
-* `wget`
-* Standard GNU utilities
+-   bash (v4+ recommended)
+-   dig
+-   timeout
+-   wget
+-   Standard GNU utilities
 
 ### Debian / Ubuntu
 
-```bash
-sudo apt install dnsutils wget coreutils
-```
+    sudo apt install dnsutils wget coreutils
 
----
----
+------------------------------------------------------------------------
 
-## ⚡ Quick Run (One-Liner)
+## ⚡ Quick Run (No Clone Required)
 
-Want to run it instantly without cloning the repository?
+    sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/siniorone/SNI-Scanner/main/scan.sh || exit 1)"
 
-```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/siniorone/SNI-Scanner/refs/heads/main/scan.sh || exit 1)"
-```
+⚠️ Security Note:\
+Always review remote scripts before executing curl \| bash in production
+environments.
 
-### 🔍 What This Does
+------------------------------------------------------------------------
 
-* Downloads the latest `scan.sh` directly from GitHub
-* Executes it immediately using `bash`
-* Stops execution if download fails (`|| exit 1`)
+## 🛠️ Offline Installation
 
----
+    git clone https://github.com/siniorone/SNI-Scanner.git
+    cd SNI-Scanner
+    chmod +x scan.sh
+    ./scan.sh
 
-## 🛠️ Offline Run
+------------------------------------------------------------------------
 
-```bash
-git clone https://github.com/siniorone/SNI-Scanner.git
-cd SNI-Scanner
-chmod +x scan.sh
-```
+## 🪟 Windows GUI Version
 
-Run it:
+Download:
+https://github.com/siniorone/SNI-Scanner/releases/download/sni/SNI_Scanner.exe
 
-```bash
-./scan.sh
-```
+SHA256: 39c498ea468071368b935ebc671f19b7caccce8ea8e48183289521f1ff66ffc9
 
----
+------------------------------------------------------------------------
 
 ## 🧠 How It Works
 
-1. Resolves target using:
+1.  Resolves domain using dig +short\
 
-   ```bash
-   dig +short domain.com
-   ```
+2.  Extracts first IPv4 address\
 
-2. Extracts the first IPv4 address.
+3.  Attempts TCP connection via /dev/tcp\
 
-3. Attempts TCP connection to each port using Bash's built-in TCP:
+4.  Classifies results (OPEN / CLOSED / DNS_FAIL)\
 
-   ```bash
-   echo > /dev/tcp/IP/PORT
-   ```
+5.  Sorts OPEN targets by number of open ports\
 
-4. Classifies results as:
+6.  Saves results into:
 
-   * ✅ `OPEN`
-   * ❌ `CLOSED`
-   * ❓ `DNS_FAIL`
+    sni_logs/scan_YYYYMMDD_HHMMSS.log
 
-5. Sorts OPEN targets by number of open ports.
+------------------------------------------------------------------------
 
-6. Saves structured output into:
+## 📊 Sample Output
 
-   ```
-   ./sni_logs/scan_YYYYMMDD_HHMMSS.log
-   ```
+    ✔ example.com          93.184.216.34   [2]  ports: 80,443
+    ✖ closed-domain.com    192.0.2.10
+    ? invalid-domain.test  no resolve
 
----
+Summary:
 
-## 📂 Input Modes
+    ✔ OPEN     12
+    ✖ CLOSED   34
+    ? DNS FAIL 3
 
-### 1️⃣ Embedded Default List
+------------------------------------------------------------------------
 
-Includes curated infrastructure targets:
+## ⚡ Performance
 
-* CDNs
-* Certificate Authorities
-* Developer platforms
-* Linux distributions
-* Security tools
-* Research platforms
+-   Uses timeout 2 per port
+-   Sequential scanning (predictable & stable)
+-   Reliability prioritized over aggressive speed
+-   No external scanning tools required
 
-Zero configuration needed.
-
----
-
-### 2️⃣ Local File
-
-File format:
-
-```
-example.com
-1.2.3.4
-sub.domain.net
-```
-
-Rules:
-
-* One domain/IP per line
-* Blank lines ignored
-* Lines starting with `#` are treated as comments
-* Windows CRLF handled automatically
-
----
-
-### 3️⃣ Remote URL
-
-Provide a direct URL to a raw `.txt` file.
-
-Example:
-
-```
-https://example.com/targets.txt
-```
-
-The file is downloaded temporarily and scanned.
-
----
-
-### 4️⃣ Single Target
-
-Quick scan for one domain or IP.
-
-Perfect for fast diagnostics.
-
----
-
-## 📊 Output Example
-
-```
-✔ example.com                    93.184.216.34   [2]  ports: 80,443
-✖ closed-domain.com              192.0.2.10
-? invalid-domain.test            no resolve
-```
-
-### Summary Block
-
-```
-✔ OPEN     12
-✖ CLOSED   34
-? DNS FAIL 3
-```
-
----
-
-## 📁 Logs
-
-All scans are automatically saved inside:
-
-```
-sni_logs/
- └── scan_20260417_153012.log
-```
-
-Each log includes:
-
-* Timestamp
-* Categorized results
-* Sorted OPEN entries
-* Final summary
-
----
-
-## ⚡ Performance Notes
-
-* Uses `timeout 2` per port
-* Sequential scanning (stable & predictable)
-* Designed for reliability over aggressive speed
-* No external scanning tools required
-
----
+------------------------------------------------------------------------
 
 ## 🔐 Disclaimer
 
-This tool is intended for:
+For educational and authorized security research use only.\
+Do NOT scan networks without permission.
 
-* Educational purposes
-* Security research
-* Infrastructure auditing
-* Personal server diagnostics
+------------------------------------------------------------------------
 
-⚠️ Do NOT scan networks you do not own or do not have permission to test.
+## 📜 License
 
-Unauthorized scanning may violate laws in your jurisdiction.
+MIT License
 
----
+------------------------------------------------------------------------
 
-## 🟢 License
-
-MIT License — Free to use, modify, and distribute.
-
----
-
-## 👨‍💻 Final Words
-
-Clean Bash.
-No dependencies beyond the basics.
-Green text. Black background.
-
+Green text. Black background.\
 **Welcome to the real world.**
