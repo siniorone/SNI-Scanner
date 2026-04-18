@@ -18,8 +18,8 @@ W='\033[1;37m'   # white
 N='\033[0m'      # reset
 
 # ── Log directory ──────────────────────────────────────────
-LOG_DIR="./sni_logs"
-mkdir -p "$LOG_DIR"
+LOG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sni_logs"
+mkdir -p "$LOG_DIR" || { echo "ERROR: Cannot create log dir: $LOG_DIR"; exit 1; }
 
 # ── Embedded default target list ───────────────────────────
 read -r -d '' DEFAULT_TARGETS << 'EOF'
@@ -144,7 +144,7 @@ print_banner() {
     echo "  ╔════════════════════════════════════════════╗"
     echo "  ║     SNI SCANNER — MATRIX EDITION           ║"
     echo "  ║  \"Follow the white rabbit\" — Neo           ║"
-    echo "  ║    github.com/siniorone/SNI-Scanner        ║"
+    echo "  ║     SNI SCANNER — MATRIX EDITION           ║"
     echo "  ╚════════════════════════════════════════════╝"
     echo -e "${N}\n"
 }
@@ -227,9 +227,9 @@ scan_from_file() {
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         line="${line// /}"
-        line="${line//$'\r'/}"   # حذف carriage return (فایل‌های ویندوزی)
+        line="${line//$'\r'/}"
         [[ -z "$line" ]] && continue
-        [[ "$line" == \#* ]] && continue   # نادیده گرفتن خطوط کامنت
+        [[ "$line" == \#* ]] && continue
         targets+=("$line")
     done < "$filepath"
 
@@ -239,16 +239,116 @@ scan_from_file() {
         return
     fi
 
-    echo -e "\n${DG}  Scanning ${BG}$total${DG} targets ...${N}\n"
+    local timestamp
+    timestamp=$(date '+%Y%m%d_%H%M%S')
+    local LIVE_LOG="$LOG_DIR/scan_$timestamp.log"
+
+    {
+        echo "════════════════════════════════════════════════════════════"
+        echo "SNI SCAN — Started at $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "Total targets: $total"
+        echo "════════════════════════════════════════════════════════════"
+        echo ""
+    } > "$LIVE_LOG"
+
+    echo -e "\n${DG}  Scanning ${BG}$total${DG} targets ...${N}"
+    echo -e "${DG}  Live log: ${C}$LIVE_LOG${N}\n"
 
     local idx=0
+    local last_line=""
+
     for target in "${targets[@]}"; do
         ((idx++))
+
+        local result
+        result="$(scan_target "$target")"
+
+        # ذخیره فوری در لاگ
+        echo "$result" >> "$LIVE_LOG"
+
+        results+=("$result")
+
+        # ساخت خط نمایش رنگی زیر progress bar
+        case "$result" in
+            OPEN*)
+                IFS='|' read -r _ t cnt ip ports <<< "$result"
+                last_line="$(printf "${G}  ✔  ${BG}%-35s ${C}%-15s ${DG}ports: ${G}%s${N}" "$t" "$ip" "$ports")"
+                ;;
+            CLOSED*)
+                IFS='|' read -r _ t _ ip <<< "$result"
+                last_line="$(printf "${R}  ✖  ${DG}%-35s ${Y}%s  CLOSED${N}" "$t" "$ip")"
+                ;;
+            DNS_FAIL*)
+                IFS='|' read -r _ t _ <<< "$result"
+                last_line="$(printf "${R}  ?  ${DG}%-35s ${R}DNS FAIL${N}" "$t")"
+                ;;
+        esac
+
+        # پاک کردن دو خط قبلی و رسم مجدد
+        printf "\033[2K"
         progress_bar "$idx" "$total" "$target"
-        results+=( "$(scan_target "$target")" )
+        printf "\n\033[2K%b\n" "$last_line"
+        # برگشت دو خط بالا برای overwrite در دور بعدی
+        printf "\033[2A"
     done
 
-    printf "\r%-80s\r\n" " "
+    # رفتن به پایین دو خط بعد از حلقه
+    printf "\n\n"
+
+    # ── append نتیجه نهایی به همان فایل لاگ ──────────────
+    {
+        echo ""
+        echo "════════════════════════════════════════════════════════════"
+        echo "FINAL RESULTS — $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "════════════════════════════════════════════════════════════"
+        echo ""
+
+        local open_r=() closed_r=() dns_r=()
+        for line in "${results[@]}"; do
+            case "$line" in
+                OPEN*)     open_r+=("$line")   ;;
+                CLOSED*)   closed_r+=("$line") ;;
+                DNS_FAIL*) dns_r+=("$line")    ;;
+            esac
+        done
+
+        if [[ ${#open_r[@]} -gt 0 ]]; then
+            echo "▸ OPEN (${#open_r[@]})"
+            echo "────────────────────────────────────────────────────────────"
+            for line in "${open_r[@]}"; do
+                IFS='|' read -r _ t cnt ip ports <<< "$line"
+                printf "✔  %-35s OPEN(%-2s) ip=%-15s ports=%s\n" "$t" "$cnt" "$ip" "$ports"
+            done
+            echo ""
+        fi
+
+        if [[ ${#closed_r[@]} -gt 0 ]]; then
+            echo "▸ CLOSED (${#closed_r[@]})"
+            echo "────────────────────────────────────────────────────────────"
+            for line in "${closed_r[@]}"; do
+                IFS='|' read -r _ t _ ip <<< "$line"
+                printf "✖  %-35s CLOSED   ip=%s\n" "$t" "$ip"
+            done
+            echo ""
+        fi
+
+        if [[ ${#dns_r[@]} -gt 0 ]]; then
+            echo "▸ DNS RESOLVE FAILED (${#dns_r[@]})"
+            echo "────────────────────────────────────────────────────────────"
+            for line in "${dns_r[@]}"; do
+                IFS='|' read -r _ t _ <<< "$line"
+                printf "?  %-35s DNS RESOLVE FAILED\n" "$t"
+            done
+            echo ""
+        fi
+
+        echo "════════════════════════════════════════════════════════════"
+        echo "SUMMARY  OPEN=${#open_r[@]}  CLOSED=${#closed_r[@]}  DNS_FAIL=${#dns_r[@]}"
+        echo "════════════════════════════════════════════════════════════"
+    } >> "$LIVE_LOG"
+
+    echo -e "${G}  ✓ Log saved: ${C}$LIVE_LOG${N}\n"
+
     display_results "${results[@]}"
 }
 
@@ -276,53 +376,6 @@ display_results() {
         done | sort -n | cut -d' ' -f2-
     ))
     unset IFS
-
-    local timestamp
-    timestamp=$(date '+%Y%m%d_%H%M%S')
-    local logfile="$LOG_DIR/scan_$timestamp.log"
-
-    # ── ذخیره لاگ ─────────────────────────────────────────
-    {
-        echo "════════════════════════════════════════════════════════════"
-        echo "SNI SCAN RESULTS — $(date '+%Y-%m-%d %H:%M:%S')"
-        echo "════════════════════════════════════════════════════════════"
-        echo ""
-
-        if [[ ${#closed_list[@]} -gt 0 ]]; then
-            echo "▸ CLOSED (${#closed_list[@]})"
-            echo "────────────────────────────────────────────────────────────"
-            for line in "${closed_list[@]}"; do
-                IFS='|' read -r status target _ ip <<< "$line"
-                printf "✖  %-35s CLOSED   ip=%s\n" "$target" "$ip"
-            done
-            echo ""
-        fi
-
-        if [[ ${#open_list[@]} -gt 0 ]]; then
-            echo "▸ OPEN (${#open_list[@]})"
-            echo "────────────────────────────────────────────────────────────"
-            for line in "${open_list[@]}"; do
-                IFS='|' read -r status target count ip ports <<< "$line"
-                printf "✔  %-35s OPEN(%-2s) ip=%-15s ports=%s\n" \
-                    "$target" "$count" "$ip" "$ports"
-            done
-            echo ""
-        fi
-
-        if [[ ${#dns_fail_list[@]} -gt 0 ]]; then
-            echo "▸ DNS RESOLVE FAILED (${#dns_fail_list[@]})"
-            echo "────────────────────────────────────────────────────────────"
-            for line in "${dns_fail_list[@]}"; do
-                IFS='|' read -r status target _ <<< "$line"
-                printf "?  %-35s DNS RESOLVE FAILED\n" "$target"
-            done
-            echo ""
-        fi
-
-        echo "════════════════════════════════════════════════════════════"
-        echo "SUMMARY  OPEN=${#open_list[@]}  CLOSED=${#closed_list[@]}  DNS_FAIL=${#dns_fail_list[@]}"
-        echo "════════════════════════════════════════════════════════════"
-    } > "$logfile"
 
     # ── نمایش در ترمینال ───────────────────────────────────
     echo -e "\n${DG}  ┌────────────────────────────────────────────────────┐${N}"
@@ -367,9 +420,9 @@ display_results() {
     echo -e "\n${DG}  ┌────────────────────────────────────────────────────┐${N}"
     printf   "  ${DG}│${N}  ${G}✔ OPEN   ${BG}%-4s${N}  ${R}✖ CLOSED  ${Y}%-4s${N}  ${R}? DNS FAIL  ${R}%-4s${N}  ${DG}│${N}\n" \
         "${#open_list[@]}" "${#closed_list[@]}" "${#dns_fail_list[@]}"
-    echo -e "${DG}  └────────────────────────────────────────────────────┘${N}"
-    echo -e "  ${DG}Log → ${C}$logfile${N}\n"
+    echo -e "${DG}  └────────────────────────────────────────────────────┘${N}\n"
 }
+
 
 # ══════════════════════════════════════════════════════════════
 #  MAIN LOOP
@@ -404,14 +457,30 @@ main() {
                 echo -e "${BG}  └──────────────────────────────────────────────────┘${N}"
                 echo -ne "\n${G}  Path to file: ${N}"
                 read -r filepath
+                
+                # ── اگر فایل پیدا نشد، در کنار اسکریپت بگرد ──
                 if [[ ! -f "$filepath" ]]; then
-                    echo -e "${R}  [!] File not found: $filepath${N}"
-                else
-                    scan_from_file "$filepath"
+                    local script_dir
+                    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+                    local alt_path="$script_dir/$filepath"
+                    
+                    if [[ -f "$alt_path" ]]; then
+                        filepath="$alt_path"
+                        echo -e "${DG}  → Found: $filepath${N}"
+                    else
+                        echo -e "${R}  [!] File not found: $filepath${N}"
+                        echo -e "${DG}      (also checked: $alt_path)${N}"
+                        echo -ne "${G}  Press ENTER to return to menu ...${N}"
+                        read -r
+                        continue
+                    fi
                 fi
+                
+                scan_from_file "$filepath"
                 echo -ne "${G}  Press ENTER to return to menu ...${N}"
                 read -r
                 ;;
+
 
             3)
                 echo -ne "\n${G}  Enter URL: ${N}"
